@@ -104,3 +104,11 @@ MIT License
 
 -   Data sourced from public flight delay datasets
 -   Weather data provided by Open-Meteo API
+
+## Data
+
+The raw historical flight data is **not** included in this repository due to size constraints. You can download the dataset from Kaggle:
+
+-   Flight Delay and Cancellation Dataset 2019–2023: [https://www.kaggle.com/datasets/patrickzel/flight-delay-and-cancellation-dataset-2019-2023](https://www.kaggle.com/datasets/patrickzel/flight-delay-and-cancellation-dataset-2019-2023)
+
+After downloading, place the relevant CSV files into a `data/` folder at the root of this project (e.g. `data/flights_processed_v1.csv`).
