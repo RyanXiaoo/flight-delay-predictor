@@ -6,7 +6,7 @@ import numpy as np
 from .features import FeatureEngineer
 
 class FlightDelayPredictor:
-    def __init__(self, model_path='models/delay_prediction_model.pkl'):
+    def __init__(self, model_path='models/flight_delay_model_tuned.pkl'):
         """
         Initialize the flight delay predictor
         
@@ -32,6 +32,11 @@ class FlightDelayPredictor:
                 self.metadata = json.load(f)
         else:
             self.metadata = {}
+            
+        # Cache the feature names the model expects
+        self.expected_feature_names = []
+        if hasattr(self.model, 'feature_names_in_'):
+            self.expected_feature_names = list(self.model.feature_names_in_)
         
     def predict_delay(self, flight_info):
         """
@@ -50,6 +55,7 @@ class FlightDelayPredictor:
             - is_delayed: bool (True if probability > 0.5)
             - risk_category: str (low/medium/high)
             - estimated_delay_min: float (if available in model)
+            - feature_importance: dict (top features influencing prediction)
         """
         # Prepare features
         features = self.feature_engineer.prepare_features(flight_info)
@@ -57,18 +63,18 @@ class FlightDelayPredictor:
         # Convert to DataFrame for prediction
         features_df = pd.DataFrame([features])
         
+        # Save original features for analysis
+        original_features = features_df.copy()
+        
         # Ensure feature columns match model's expected input
-        if hasattr(self.model, 'feature_names_in_'):
-            # For sklearn models that store feature names
-            missing_cols = set(self.model.feature_names_in_) - set(features_df.columns)
-            extra_cols = set(features_df.columns) - set(self.model.feature_names_in_)
-            
+        if self.expected_feature_names:
             # Add missing columns with zeros
+            missing_cols = set(self.expected_feature_names) - set(features_df.columns)
             for col in missing_cols:
                 features_df[col] = 0
                 
             # Keep only required columns in the right order
-            features_df = features_df[self.model.feature_names_in_]
+            features_df = features_df[self.expected_feature_names]
         
         # Make prediction
         if hasattr(self.model, 'predict_proba'):
@@ -84,11 +90,27 @@ class FlightDelayPredictor:
         # Categorize risk
         risk_category = self._categorize_risk(probability)
         
+        # Get feature importance for this prediction if possible
+        feature_importance = {}
+        if hasattr(self.model, 'feature_importances_'):
+            # Create a mapping of feature names to their importance
+            all_importances = dict(zip(self.expected_feature_names, self.model.feature_importances_))
+            
+            # Only include features that are actually set (non-zero) in the original data
+            for col in original_features.columns:
+                if col in all_importances and original_features[col].values[0] != 0:
+                    feature_importance[col] = all_importances[col]
+            
+            # Sort by importance and take top 5
+            feature_importance = dict(sorted(feature_importance.items(), 
+                                             key=lambda x: x[1], reverse=True)[:5])
+        
         # Prepare result
         result = {
             'probability': float(probability),
             'is_delayed': bool(is_delayed),
-            'risk_category': risk_category
+            'risk_category': risk_category,
+            'feature_importance': feature_importance
         }
         
         # Add estimated delay minutes if available
