@@ -99,6 +99,33 @@ def estimate_flight_parameters(origin, dest):
         time = distance / DEFAULT_SPEED * 60  # convert to minutes
         return {"distance": distance, "time": time}
 
+def format_feature_name(feature_name):
+    """Format feature names for display"""
+    if feature_name.startswith("AIRLINE_"):
+        # Extract airline name without prefix
+        return feature_name.replace("AIRLINE_", "")
+    elif feature_name.startswith("ORIGIN_"):
+        return f"Origin: {feature_name.replace('ORIGIN_', '')}"
+    elif feature_name.startswith("DEST_"):
+        return f"Destination: {feature_name.replace('DEST_', '')}"
+    elif feature_name.startswith("TIME_BLOCK_"):
+        return f"Time: {feature_name.replace('TIME_BLOCK_', '').title()}"
+    elif feature_name == "DAY_OF_WEEK":
+        return "Day of Week"
+    elif feature_name == "IS_HOLIDAY":
+        return "Holiday"
+    elif feature_name == "IS_WEEKEND":
+        return "Weekend"
+    elif feature_name == "IS_EARLY_MORNING":
+        return "Early Morning"
+    elif feature_name == "IS_LATE_NIGHT":
+        return "Late Night"
+    elif feature_name == "IS_LONG_FLIGHT":
+        return "Long Flight"
+    else:
+        # Convert snake_case to Title Case
+        return feature_name.replace("_", " ").title()
+
 def main():
     predictor = load_predictor()
     if predictor is None:
@@ -240,6 +267,33 @@ def main():
                         unsafe_allow_html=True
                     )
                 
+                # Display feature importance if available
+                if result.get('feature_importance'):
+                    st.subheader("Key Factors Influencing Prediction")
+                    
+                    # Create a dataframe for the chart
+                    importance_data = []
+                    for feature, importance in result['feature_importance'].items():
+                        importance_data.append({
+                            'Feature': format_feature_name(feature),
+                            'Importance': float(importance),
+                        })
+                    
+                    importance_df = pd.DataFrame(importance_data)
+                    
+                    # Display as bar chart
+                    chart = alt.Chart(importance_df).mark_bar().encode(
+                        x=alt.X('Importance:Q', title='Relative Importance'),
+                        y=alt.Y('Feature:N', sort='-x', title=None),
+                        color=alt.Color('Importance:Q', 
+                                       scale=alt.Scale(scheme='blues'),
+                                       legend=None)
+                    ).properties(
+                        height=min(len(importance_data) * 40, 300)
+                    )
+                    
+                    st.altair_chart(chart, use_container_width=True)
+                
                 # Visualization
                 st.subheader("Probability Visualization")
                 
@@ -261,6 +315,18 @@ def main():
                 )
                 
                 st.altair_chart(chart, use_container_width=True)
+                
+                # Add recommendations based on the prediction
+                if result.get('is_delayed', False):
+                    st.warning("""
+                    ### Recommendations for Potential Delay
+                    
+                    Based on the prediction, this flight has a higher chance of delay. Consider:
+                    - Allowing extra time for connections
+                    - Checking with the airline before heading to the airport
+                    - Having a backup plan for important meetings or events
+                    - Setting up flight status alerts
+                    """)
                 
                 # Add some explanation
                 st.markdown("""
